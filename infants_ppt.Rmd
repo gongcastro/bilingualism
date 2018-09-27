@@ -1,0 +1,199 @@
+---
+title: "Refining infant research methods"
+author: "Gonzalo García-Castro"
+date: "27/9/2018"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(pwr)
+library(tidyverse)
+library(plotly)
+library(RColorBrewer)
+library(magrittr)
+```
+
+## Statistical power ($\beta$): a reminder
+
+Probability of rejecting the null of hypothesis that there is no effect when there is an effect.
+Provided that we want to achieve $\beta$ = .80, that Type I error rate ($\alpha$) = .05.
+
+## Effect sizes in infant research
+
+Effect sizes in infant looking-times reseach:
+
+```{r oakes effect sizes, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+oakes <- read.delim("oakes.txt", row.names = NULL, header = FALSE)
+colnames(oakes) <- c("citation", "n.cell", "test", "es", "power", "es50", "n.cell.needed", "n.cell.needed.es50")
+oakeses <- oakes %>% select(es, es50) %>% gather(key = "estimation")
+oakeses %$% estimation %>% factor
+```
+
+```{r oakes effect sizes plot, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(oakeses) +
+  geom_histogram(aes(x = value, fill = estimation), binwidth = 0.2) +
+  labs(x = "Estimated effect size", y = "Frequency") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 11)) +
+  scale_fill_brewer(palette = "Pastel2")
+```
+
+# Increasing statistical power
+Lakens
+
+
+## Increase sample size (*n*)
+Sample sizes in infant looking-time reseach:
+
+```{r oakes sample sizes}
+ggplot(oakes) +
+  geom_histogram(aes(x = n.cell), binwidth = 5) +
+  labs(x = "Subjects per cell", y = "Frequency") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 11)) +
+  scale_fill_brewer(palette = "Pastel2")
+```
+
+- Collaborative approach
+
+## Decreased measurement error
+
+- Better measurements
+- Reliability and inter-judge analysis
+
+## Use within subject designs
+
+## Use one sided-tests
+Graph: Power analysis (one-sided vs. two-sided tests)
+
+```{r data for power analysis, message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+pwr.d5.data <- cbind(NULL, NULL)
+for (i in 4:125){
+  pwr.t.one.dep <- pwr.t.test(n = i, d = 0.5, type = "one.sample", alternative = "greater")
+  pwr.t.two.dep <- pwr.t.test(n = i, d = 0.5, type = "one.sample", alternative = "two.sided")
+  pwr.t.one.indep <- pwr.t.test(n = i, d = 0.5, type = "two.sample", alternative = "greater")
+  pwr.t.two.indep <- pwr.t.test(n = i, d = 0.5, type = "two.sample", alternative = "two.sided")
+  pwr.r.one <- pwr.r.test(n = i, r = 0.30, alternative = "greater")
+  pwr.r.two <- pwr.r.test(n = i, r = 0.30, alternative = "two.sided")
+  
+  pwr.d5.data <- cbind(pwr.t.one.dep$n,
+                       pwr.t.one.dep$power,
+                       pwr.t.two.dep$power,
+                       pwr.t.one.indep$power,
+                       pwr.t.two.indep$power,
+                       pwr.r.one$power,
+                       pwr.r.two$power) %>% rbind(., pwr.d5.data) %>% as.data.frame
+}
+
+colnames(pwr.d5.data) <- c("n", "power.t.one.dep", "power.t.two.dep", "power.t.one.indep", "power.t.two.indep", "power.r.one", "power.r.two")
+pwr.d5.data.long <- pwr.d5.data %>% select(power.t.one.dep,
+                                           power.t.two.dep,
+                                           power.t.one.indep,
+                                           power.t.two.indep,
+                                           power.r.one,
+                                           power.r.two) %>% as.data.frame %>% gather(key = test, value = power) %>% add_column(n = rep(pwr.d5.data$n, 6))
+
+pwr.d5.data.long$test %>% factor
+
+n.d5.80.t.one.dep <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.t.one.dep) %>% which.min]
+n.d5.80.t.two.dep <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.t.two.dep) %>% which.min]
+n.d5.80.t.one.indep <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.t.one.indep) %>% which.min]
+n.d5.80.t.two.indep <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.t.two.indep) %>% which.min]
+n.d5.80.r.one <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.r.one) %>% which.min]
+n.d5.80.r.two <- pwr.d5.data$n[abs(0.80-pwr.d5.data$power.r.two) %>% which.min]
+
+n.d5.80 <- data.frame(n.d5.80.t.one.dep, n.d5.80.t.two.dep, n.d5.80.t.one.indep, n.d5.80.t.two.indep, n.d5.80.r.one, n.d5.80.r.two) %>% gather(key = test, value = n)
+
+```
+
+## When effect size is medium
+```{r graph for power analysis medium, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(pwr.d5.data.long) +
+  geom_line(aes(x = n, y = power, color = test), size = 1.5) +
+  geom_hline(yintercept = 0.80, color = "grey") +
+  geom_vline(data = n.d5.80, aes(xintercept = n), linetype = "dotted", size = 1, color = "grey") +
+  geom_label(data = n.d5.80, aes(x = n, y = 0.80, label = paste("N =", n, sep = " ")), nudge_y = 0) +
+  labs(title = "Sample size to reach 0.80 power, given a medium effect size", x = "Sample size", y = "Power") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        text = element_text(size = 11)) +
+  scale_color_brewer(palette = "BrBG")
+```
+
+## When effect size is small
+
+```{r data for power analysis small, message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+pwr.d2.data <- cbind(NULL, NULL)
+for (i in 4:1000){
+  pwr.t.one.dep <- pwr.t.test(n = i, d = 0.20, type = "one.sample", alternative = "greater")
+  pwr.t.two.dep <- pwr.t.test(n = i, d = 0.20, type = "one.sample", alternative = "two.sided")
+  pwr.t.one.indep <- pwr.t.test(n = i, d = 0.20, type = "two.sample", alternative = "greater")
+  pwr.t.two.indep <- pwr.t.test(n = i, d = 0.20, type = "two.sample", alternative = "two.sided")
+  pwr.r.one <- pwr.r.test(n = i, r = 0.10, alternative = "greater")
+  pwr.r.two <- pwr.r.test(n = i, r = 0.10, alternative = "two.sided")
+  
+  pwr.d2.data <- cbind(pwr.t.one.dep$n,
+                       pwr.t.one.dep$power,
+                       pwr.t.two.dep$power,
+                       pwr.t.one.indep$power,
+                       pwr.t.two.indep$power,
+                       pwr.r.one$power,
+                       pwr.r.two$power) %>% rbind(., pwr.d2.data) %>% as.data.frame
+}
+colnames(pwr.d2.data) <- c("n", "power.t.one.dep", "power.t.two.dep", "power.t.one.indep", "power.t.two.indep", "power.r.one", "power.r.two")
+pwr.d2.data.long <- pwr.d2.data %>% select(power.t.one.dep,
+                                           power.t.two.dep,
+                                           power.t.one.indep,
+                                           power.t.two.indep,
+                                           power.r.one,
+                                           power.r.two) %>% as.data.frame %>% gather(key = test, value = power) %>% add_column(n = rep(pwr.d2.data$n, 6))
+
+pwr.d2.data.long$test %>% factor
+
+n.d2.80.t.one.dep <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.t.one.dep) %>% which.min]
+n.d2.80.t.two.dep <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.t.two.dep) %>% which.min]
+n.d2.80.t.one.indep <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.t.one.indep) %>% which.min]
+n.d2.80.t.two.indep <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.t.two.indep) %>% which.min]
+n.d2.80.r.one <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.r.one) %>% which.min]
+n.d2.80.r.two <- pwr.d2.data$n[abs(0.80-pwr.d2.data$power.r.two) %>% which.min]
+
+n.d2.80 <- data.frame(n.d2.80.t.one.dep, n.d2.80.t.two.dep, n.d2.80.t.one.indep, n.d2.80.t.two.indep, n.d2.80.r.one, n.d2.80.r.two) %>% gather(key = test, value = n)
+
+```
+
+```{r graph for power analysis, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(pwr.d2.data.long) +
+  geom_line(aes(x = n, y = power, color = test), size = 1.5) +
+  geom_hline(yintercept = 0.80, color = "grey") +
+  geom_vline(data = n.d2.80, aes(xintercept = n), linetype = "dotted", size = 1, color = "grey") +
+  geom_label(data = n.d2.80, aes(x = n, y = 0.80, label = paste("N =", n, sep = " ")), nudge_y = 0) +
+  labs(title = "Sample size to reach 0.80 power, given a small effect size", x = "Sample size", y = "Power") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        legend.position = "bottom",
+        text = element_text(size = 11)) +
+  scale_color_brewer(palette = "BrBG")
+```
+
+## Use continuous predictors (not categorical) when possible
+The case of bilingualsism: monolinguals vs. bilinguals or degree of bilingualism.
+
+## Increase variability in response variable
+A 7-alternative item make it possible to find subtler differences than a 2-alternative item.
+
+# Other ways of refining research
+ 
+ * Pre-registration
+ * Share data, code and materials
+ * Replication (collaborative approach): Type I errors are corrected
+    - ManyBabies
+    - PsychAccelerator
+    
+    
+ 
+ 
+ 
